@@ -1,0 +1,20 @@
+name: lab-edad-pipeline
+version: 0.0.1
+schema: v1
+
+"models": [
+    {
+      "name": "GLM 5.2",
+      "provider": "openai",
+      "model": "glm-5.2",
+      "apiBase": "https://open.bigmodel.cn/api/paas/v4",
+      "apiKey": "e1162617aa6246028be698cadea21c13.SZ5t4O3sKDnfyqXN",
+      "capabilities": ["chat", "edit", "apply", "inline"]
+    }
+  ]
+
+# Los 3 roles del pipeline, invocables con /griller  /maker  /checker
+prompts:
+  - uses: file://.continue/prompts/griller.md
+  - uses: file://.continue/prompts/maker.md
+  - uses: file://.continue/prompts/checker.md
