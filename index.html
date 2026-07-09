@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es-CO">
 <head>
     <meta charset="UTF-8">
@@ -79,6 +79,12 @@
             color: #666;
             font-size: 0.875rem;
         }
+
+        .result-text {
+            color: #222;
+            font-size: 1rem;
+            font-weight: 500;
+        }
     </style>
 </head>
 <body>
@@ -101,12 +107,197 @@
     </div>
 
     <script>
-        // Configuración de restricciones del date picker
-        const fechaInput = document.getElementById('fecha-nacimiento');
-        const hoy = new Date().toISOString().split('T')[0];
+        // ============================================
+        // FUNCIONES PURAS (Lógica de negocio)
+        // ============================================
         
+        function obtenerComponentesBogota(fecha) {
+            if (!(fecha instanceof Date) || isNaN(fecha)) {
+                throw new Error("Fecha inválida proporcionada");
+            }
+            
+            var formatter = new Intl.DateTimeFormat('en-US', {
+                timeZone: 'America/Bogota',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
+            });
+            
+            var parts = formatter.formatToParts(fecha);
+            var result = {};
+            
+            for (var i = 0; i < parts.length; i++) {
+                var part = parts[i];
+                if (part.type === 'year') result.year = parseInt(part.value, 10);
+                if (part.type === 'month') result.month = parseInt(part.value, 10);
+                if (part.type === 'day') result.day = parseInt(part.value, 10);
+                if (part.type === 'hour') result.hour = parseInt(part.value, 10);
+                if (part.type === 'minute') result.minute = parseInt(part.value, 10);
+                if (part.type === 'second') result.second = parseInt(part.value, 10);
+            }
+            
+            return result;
+        }
+        
+        function crearFechaBogota(fecha, hora) {
+            if (!fecha || !hora) {
+                throw new Error("Fecha y hora son requeridas");
+            }
+            
+            var fechaISO = fecha + 'T' + hora + ':00-05:00';
+            var result = new Date(fechaISO);
+            
+            if (isNaN(result.getTime())) {
+                throw new Error("Formato de fecha/hora inválido");
+            }
+            
+            return result;
+        }
+        
+        function calcularEdad(fechaNacimiento, horaNacimiento, ahora) {
+            if (!fechaNacimiento || !horaNacimiento) {
+                throw new Error("Fecha y hora de nacimiento son requeridas");
+            }
+            if (!(ahora instanceof Date) || isNaN(ahora)) {
+                throw new Error("Fecha actual inválida");
+            }
+            
+            var nacimiento = crearFechaBogota(fechaNacimiento, horaNacimiento);
+            
+            if (nacimiento > ahora) {
+                throw new Error("La fecha de nacimiento no puede ser futura");
+            }
+            
+            var nac = obtenerComponentesBogota(nacimiento);
+            var act = obtenerComponentesBogota(ahora);
+            
+            var años = act.year - nac.year;
+            var meses = act.month - nac.month;
+            var días = act.day - nac.day;
+            var horas = act.hour - nac.hour;
+            var minutos = act.minute - nac.minute;
+            var segundos = act.second - nac.second;
+            
+            if (segundos < 0) {
+                segundos += 60;
+                minutos--;
+            }
+            if (minutos < 0) {
+                minutos += 60;
+                horas--;
+            }
+            if (horas < 0) {
+                horas += 24;
+                días--;
+            }
+            if (días < 0) {
+                var mesAnterior = new Date(act.year, act.month - 1, 0);
+                días += mesAnterior.getDate();
+                meses--;
+            }
+            if (meses < 0) {
+                meses += 12;
+                años--;
+            }
+            
+            return {
+                años: Math.max(0, años),
+                meses: Math.max(0, meses),
+                días: Math.max(0, días),
+                horas: Math.max(0, horas),
+                minutos: Math.max(0, minutos),
+                segundos: Math.max(0, segundos)
+            };
+        }
+        
+        function formatearUnidad(valor, singular, plural) {
+            return valor + ' ' + (valor === 1 ? singular : plural);
+        }
+        
+        function formatearEdad(edad) {
+            if (!edad || typeof edad !== 'object') {
+                throw new Error("Objeto edad inválido");
+            }
+            
+            var partes = [
+                formatearUnidad(edad.años, 'año', 'años'),
+                formatearUnidad(edad.meses, 'mes', 'meses'),
+                formatearUnidad(edad.días, 'día', 'días'),
+                formatearUnidad(edad.horas, 'hora', 'horas'),
+                formatearUnidad(edad.minutos, 'minuto', 'minutos'),
+                formatearUnidad(edad.segundos, 'segundo', 'segundos')
+            ];
+            
+            return 'La edad de tu ser más amado es ' + partes.join(', ');
+        }
+        
+        // ============================================
+        // MANEJO DEL DOM
+        // ============================================
+        
+        var fechaInput = document.getElementById('fecha-nacimiento');
+        var horaInput = document.getElementById('hora-nacimiento');
+        var mensajeEl = document.getElementById('mensaje');
+        
+        var tickerId = null;
+        
+        var hoy = new Date().toISOString().split('T')[0];
         fechaInput.setAttribute('min', '1900-01-01');
         fechaInput.setAttribute('max', hoy);
+        
+        function actualizarResultado() {
+            var fecha = fechaInput.value;
+            var hora = horaInput.value;
+            
+            if (!fecha && !hora) {
+                mensajeEl.textContent = '';
+                mensajeEl.className = 'message';
+                return;
+            }
+            
+            if (!fecha && hora) {
+                mensajeEl.textContent = '';
+                mensajeEl.className = 'message';
+                return;
+            }
+            
+            if (fecha && !hora) {
+                mensajeEl.textContent = 'Por favor ingresa la hora de nacimiento';
+                mensajeEl.className = 'message';
+                return;
+            }
+            
+            try {
+                var ahora = new Date();
+                var edad = calcularEdad(fecha, hora, ahora);
+                mensajeEl.textContent = formatearEdad(edad);
+                mensajeEl.className = 'result-text';
+            } catch (error) {
+                mensajeEl.textContent = 'Error en el cálculo. Verifica los datos.';
+                mensajeEl.className = 'message';
+            }
+        }
+        
+        function iniciarTicker() {
+            if (tickerId !== null) {
+                clearInterval(tickerId);
+            }
+            tickerId = setInterval(actualizarResultado, 1000);
+        }
+        
+        function manejarCambio() {
+            actualizarResultado();
+            iniciarTicker();
+        }
+        
+        fechaInput.addEventListener('input', manejarCambio);
+        horaInput.addEventListener('input', manejarCambio);
+        
+        iniciarTicker();
     </script>
 </body>
 </html>
